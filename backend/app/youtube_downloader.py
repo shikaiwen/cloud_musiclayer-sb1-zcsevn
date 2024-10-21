@@ -37,7 +37,7 @@ def download_progress_hook(d):
     elif d['status'] == 'finished':
         print("Download completed. Converting to MP3...")
 
-def download_and_convert(url: str, db: Session):
+async def download_and_convert(url: str, db: Session, background_tasks: BackgroundTasks):
     start_time = time.time()
     ydl_opts = {
         'format': 'bestaudio/best',
@@ -52,40 +52,29 @@ def download_and_convert(url: str, db: Session):
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
+            info = ydl.extract_info(url, download=False)
             filename = ydl.prepare_filename(info)
             mp3_filename = os.path.splitext(filename)[0] + '.mp3'
         
-        end_time = time.time()
-        download_cost_time = end_time - start_time
-        file_size = os.path.getsize(mp3_filename) / (1024 * 1024)  # Convert to MB
-
-        MP3DownloadHistory.create(
+        # Create a new download history entry with "pending" status
+        history_entry = MP3DownloadHistory.create(
             db=db,
             url=url,
-            download_cost_time=download_cost_time,
+            download_cost_time=0,
             filename=mp3_filename,
-            file_size=file_size,
-            status="completed"
+            file_size=0,
+            status="pending"
         )
 
+        # Start the download process asynchronously
+        background_tasks.add_task(perform_download, url, ydl_opts, db, history_entry.id, start_time)
 
-        # print("my test ....")
-        # MP3DownloadHistory.create(
-        #     db=db,
-        #     url=url,
-        #     download_cost_time=12,
-        #     filename="mp3_filename",
-        #     file_size=122,
-        #     status="completed"
-        # )
-
-        return "mp3_filename"
+        return history_entry.id
     except Exception as e:
         end_time = time.time()
         download_cost_time = end_time - start_time
 
-        MP3DownloadHistory.create(
+        history_entry = MP3DownloadHistory.create(
             db=db,
             url=url,
             download_cost_time=download_cost_time,
@@ -95,6 +84,40 @@ def download_and_convert(url: str, db: Session):
         )
 
         raise e
+
+async def perform_download(url: str, ydl_opts: dict, db: Session, history_id: int, start_time: float):
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            filename = ydl.prepare_filename(info)
+            mp3_filename = os.path.splitext(filename)[0] + '.mp3'
+        
+        end_time = time.time()
+        download_cost_time = end_time - start_time
+        file_size = os.path.getsize(mp3_filename) / (1024 * 1024)  # Convert to MB
+
+        MP3DownloadHistory.update(
+            db=db,
+            id=history_id,
+            download_cost_time=download_cost_time,
+            filename=mp3_filename,
+            file_size=file_size,
+            status="completed"
+        )
+    except Exception as e:
+        end_time = time.time()
+        download_cost_time = end_time - start_time
+
+        MP3DownloadHistory.update(
+            db=db,
+            id=history_id,
+            download_cost_time=download_cost_time,
+            filename="",
+            file_size=0,
+            status="failed"
+        )
+
+        print(f"Error during download: {str(e)}")
 
 # if __name__ == "__main__":
 #     import uvicorn

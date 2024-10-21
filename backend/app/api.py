@@ -1,7 +1,6 @@
 from typing import List
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-# from app.schemas import schema
 from app import schemas
 from app.database import get_db
 from app.service.item_service import ItemService
@@ -47,17 +46,30 @@ def delete_item(item_id: int, db: Session = Depends(get_db)):
 
 @router.post("/download")
 async def download_video(request: DownloadRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
-    background_tasks.add_task(download_and_convert, request.url, db)
-    return JSONResponse(content={"message": "Download started"}, status_code=202)
+        # Check if the URL already exists in the download history
+    existing_entry = MP3DownloadHistory.get_by_url(db, request.url)
+    if existing_entry and existing_entry.status == "completed":
+            return JSONResponse(content={"ok":False,"message": "file is already been downloaded", "history_id": existing_entry.id})
 
-# , response_model=List[MP3DownloadHistoryResponse]
+    history_id = await download_and_convert(request.url, db, background_tasks)
+    return JSONResponse(content={"ok":True,"message": "Download started", "history_id": history_id}, status_code=202)
+
 @router.get("/download-history")
-def get_download_history(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    print("history. ......")
-    history = MP3DownloadHistory.get_all(db, skip=skip, limit=limit)
-    return history
+def get_download_history(
+    page: int = Query(1, ge=1),
+    per_page: int = Query(10, ge=1, le=100),
+    db: Session = Depends(get_db)
+):
+    items, total = MP3DownloadHistory.get_paginated(db, page=page, per_page=per_page)
+    return {
+        "items": items,
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "total_pages": (total + per_page - 1) // per_page
+    }
 
-@router.get("/download-history/{history_id}", response_model=MP3DownloadHistoryResponse)
+@router.get("/download-history/{history_id}")
 def get_download_history_by_id(history_id: int, db: Session = Depends(get_db)):
     history_item = MP3DownloadHistory.get_by_id(db, history_id)
     if history_item is None:
@@ -71,12 +83,12 @@ def update_download_history(history_id: int, updated_data: dict, db: Session = D
         raise HTTPException(status_code=404, detail="Download history not found")
     return updated_item
 
-@router.delete("/download-history/{history_id}", response_model=MP3DownloadHistoryResponse)
+@router.delete("/download-history/{history_id}")
 def delete_download_history(history_id: int, db: Session = Depends(get_db)):
     deleted_item = MP3DownloadHistory.delete(db, history_id)
     if deleted_item is None:
         raise HTTPException(status_code=404, detail="Download history not found")
-    return deleted_item
+    return JSONResponse(content={"message": "Download history deleted successfully"}, status_code=200)
 
 @router.get("/mp3/{filename}")
 async def get_mp3(filename: str):

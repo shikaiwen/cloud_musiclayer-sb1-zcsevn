@@ -2,8 +2,8 @@ from sqlalchemy import Column, Integer, String, DateTime, Float
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import Session
 from datetime import datetime
-# Base = declarative_base()
 from app.database import Base
+from typing import List, Tuple
 
 
 class MP3DownloadHistory(Base):
@@ -26,27 +26,30 @@ class MP3DownloadHistory(Base):
         return new_entry
 
     @classmethod
-    def get_all(cls, db: Session, skip: int = 0, limit: int = 100):
-        return db.query(cls).offset(skip).limit(limit).all()
+    def get_paginated(cls, db: Session, page: int = 1, per_page: int = 10) -> Tuple[List["MP3DownloadHistory"], int]:
+        query = db.query(cls).order_by(cls.create_time.desc())
+        total = query.count()
+        items = query.offset((page - 1) * per_page).limit(per_page).all()
+        return items, total
 
     @classmethod
-    def get_by_id(cls, db: Session, entry_id: int):
-        return db.query(cls).filter(cls.id == entry_id).first()
+    def get_by_id(cls, db: Session, id: int):
+        return db.query(cls).filter(cls.id == id).first()
 
     @classmethod
-    def update(cls, db: Session, entry_id: int, **kwargs):
-        db.query(cls).filter(cls.id == entry_id).update(kwargs)
+    def update(cls, db: Session, id: int, **kwargs):
+        db.query(cls).filter(cls.id == id).update(kwargs)
         db.commit()
-        return db.query(cls).filter(cls.id == entry_id).first()
+        return db.query(cls).filter(cls.id == id).first()
 
     @classmethod
-    def delete(cls, db: Session, entry_id: int):
-        entry = db.query(cls).filter(cls.id == entry_id).first()
+    def delete(cls, db: Session, id: int):
+        entry = db.query(cls).filter(cls.id == id).first()
         if entry:
             db.delete(entry)
             db.commit()
         return entry
 
-# Don't forget to create the table in your database
-# You can do this by running the following code when setting up your database:
-# Base.metadata.create_all(bind=engine)
+    @classmethod
+    def get_by_url(cls, db: Session, url: str):
+        return db.query(cls).filter(cls.url == url).first()

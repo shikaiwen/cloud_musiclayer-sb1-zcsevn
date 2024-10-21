@@ -19,6 +19,21 @@ app.add_middleware(
     allow_headers=["*"],  # Allows all headers
 )
 
+# origins = [
+#     "http://192.168.40.58:3000",  # Your frontend URL
+#     "http://localhost:3000",      # In case you use localhost
+# ]
+
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=origins,
+#     allow_credentials=True,
+#     allow_methods=["*"],
+#     allow_headers=["*"],
+#     expose_headers=["*"],
+# )
+
+
 app.include_router(router)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
@@ -29,38 +44,38 @@ Base.metadata.create_all(bind=engine)
 AUDIO_DIR = os.path.join(os.path.dirname(__file__), "audios")
 os.makedirs(AUDIO_DIR, exist_ok=True)
 
-class DownloadRequest(BaseModel):
-    url: str
+# class DownloadRequest(BaseModel):
+#     url: str
 
-def download_progress_hook(d):
-    if d['status'] == 'downloading':
-        print(f"Downloading: {d['_percent_str']} of {d['_total_bytes_str']} at {d['_speed_str']}")
-    elif d['status'] == 'finished':
-        print("Download completed. Converting to MP3...")
+# def download_progress_hook(d):
+#     if d['status'] == 'downloading':
+#         print(f"Downloading: {d['_percent_str']} of {d['_total_bytes_str']} at {d['_speed_str']}")
+#     elif d['status'] == 'finished':
+#         print("Download completed. Converting to MP3...")
 
-def download_and_convert(url: str):
-    ydl_opts = {
-        'format': 'bestaudio/best',
-        'postprocessors': [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'mp3',
-            'preferredquality': '192',
-        }],
-        'outtmpl': os.path.join(AUDIO_DIR, '%(title)s.%(ext)s'),
-        'progress_hooks': [download_progress_hook],
-    }
+# def download_and_convert(url: str):
+#     ydl_opts = {
+#         'format': 'bestaudio/best',
+#         'postprocessors': [{
+#             'key': 'FFmpegExtractAudio',
+#             'preferredcodec': 'mp3',
+#             'preferredquality': '192',
+#         }],
+#         'outtmpl': os.path.join(AUDIO_DIR, '%(title)s.%(ext)s'),
+#         'progress_hooks': [download_progress_hook],
+#     }
 
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=True)
-        filename = ydl.prepare_filename(info)
-        mp3_filename = os.path.splitext(filename)[0] + '.mp3'
+#     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+#         info = ydl.extract_info(url, download=True)
+#         filename = ydl.prepare_filename(info)
+#         mp3_filename = os.path.splitext(filename)[0] + '.mp3'
     
-    return mp3_filename
+#     return mp3_filename
 
-@app.post("/download")
-async def download_video(request: DownloadRequest, background_tasks: BackgroundTasks):
-    background_tasks.add_task(download_and_convert, request.url)
-    return JSONResponse(content={"message": "Download started"}, status_code=202)
+# @app.post("/download")
+# async def download_video(request: DownloadRequest, background_tasks: BackgroundTasks):
+#     background_tasks.add_task(download_and_convert, request.url)
+#     return JSONResponse(content={"message": "Download started"}, status_code=202)
 
 @app.get("/hello")
 async def root():
