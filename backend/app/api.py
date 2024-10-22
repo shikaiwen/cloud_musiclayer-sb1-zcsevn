@@ -10,6 +10,7 @@ import os
 
 from app.mp3_download_history import MP3DownloadHistory
 from app.youtube_downloader import DownloadRequest, MP3DownloadHistoryResponse, download_and_convert
+from app.youtube_searcher import search_videos
 
 router = APIRouter()
 
@@ -43,6 +44,10 @@ def delete_item(item_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Item not found")
     return db_item
 
+@router.get("/video/search")
+async def video_search(keywords:str,  db: Session = Depends(get_db)):
+    results = search_videos(keywords)
+    return JSONResponse(content={"ok":True,"results": results})
 
 @router.post("/download")
 async def download_video(request: DownloadRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):

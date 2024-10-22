@@ -14,14 +14,15 @@ def search_videos(keyword, max_results=10):
         result = ydl.extract_info(search_query, download=False)
         
         if 'entries' in result:
+            return result['entries'] 
             video_urls = [f"https://www.youtube.com/watch?v={entry['id']}" for entry in result['entries']]
             return video_urls
         else:
             return []
 
 # Example usage
-keyword = "python tutorial"
-videos = search_videos(keyword)
+# keyword = "python tutorial"
+# videos = search_videos(keyword)
 
-for i, url in enumerate(videos, 1):
-    print(f"{i}. {url}")
+# for i, url in enumerate(videos, 1):
+#     print(f"{i}. {url}")
